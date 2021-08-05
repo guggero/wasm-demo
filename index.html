@@ -1,0 +1,104 @@
+<!doctype html>
+<!--
+Copyright 2018 The Go Authors. All rights reserved.
+Use of this source code is governed by a BSD-style
+license that can be found in the LICENSE file.
+-->
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>WASM demo</title>
+</head>
+
+<body>
+<!--
+Add the following polyfill for Microsoft Edge 17/18 support:
+<script src="https://cdn.jsdelivr.net/npm/text-encoding@0.7.0/lib/encoding.min.js"></script>
+(see https://caniuse.com/#feat=textencoder)
+-->
+<script src="lib/wasm_exec.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+<script>
+    if (!WebAssembly.instantiateStreaming) { // polyfill
+        WebAssembly.instantiateStreaming = async (resp, importObject) => {
+            const source = await (await resp).arrayBuffer();
+            return await WebAssembly.instantiate(source, importObject);
+        };
+    }
+
+    const go = new Go();
+    let mod, inst;
+    WebAssembly.instantiateStreaming(fetch('wasm-demo.wasm'), go.importObject).then((result) => {
+        mod = result.module;
+        inst = result.instance;
+        run();
+    }).catch((err) => {
+        console.error(err);
+    });
+
+    async function run() {
+        console.clear();
+        go.argv = [
+            'wasm-demo',
+            '--debuglevel=trace'
+        ];
+        let readyTicker = null;
+        let isReady = function () {
+            if (demoIsReady === true) {
+                clearInterval(readyTicker);
+                $('#ready').show();
+                $('#loading').hide();
+            }
+        }
+        readyTicker = setInterval(isReady, 500);
+        await go.run(inst);
+        inst = await WebAssembly.instantiate(mod, go.importObject); // reset instance
+    }
+
+    async function decodeInvoice() {
+        setResult(demoDecodeInvoice($('#invoice').val()));
+    }
+    
+    async function generateAezeed() {
+        setResult(demoGenerateAezeed());
+    }
+    
+    async function decodePsbt() {
+        setResult(demoDecodePsbt($('#psbt').val()));
+    }
+
+    function setResult(result) {
+        try {
+            let parsed = JSON.parse(result);
+            $('#output').text(JSON.stringify(parsed, null, 2));
+        } catch (e) {
+            $('#output').text(result);
+        }
+    }
+</script>
+<div id="loading">
+    Loading WASM file, please wait...
+</div>
+<div id="ready" style="display:none">
+    <label for="invoice">Invoice: </label>
+    <input id="invoice" type="text" size="80" value="lnbc1500n1pssc9wkpp5x3p7cys9vk6pfvsrl9flraasny304uqfjhut00hqgvp9v42u42eqdpa2fjkzep6ypyx7aeqw3hjqsmfwf3h2mrpwgs9yetzv9kxzmnrv5s8wteqgfskccqzpgxqr23ssp5vw3llna7c9xngl5wwfflr6czn39t39ks8czkv7hfju2vs2u2ce8s9qyyssq5zgr9khymuqgkxuwz0ulreth0kxdreewmmuvvw2kn74a8xdfelsk9q5z5fnxy2rkdpwyldxnkse5pmfpxsdvfw6m7ffstzhf4ahzhjgqm6avmd"/>
+    <br />
+    <button onClick="decodeInvoice();">Decode</button>
+    
+    <br/><br/>
+    <button onClick="generateAezeed();">Generate seed</button>
+
+    <br/><br/>
+    <label for="psbt">PSBT: </label>
+    <input id="psbt" type="text" size="80" value="cHNidP8BAHECAAAAAeJQY2VLRtutKgQYFUajEKpjFfl0Uyrm6x23OumDpe/4AQAAAAD/////AkxREgEAAAAAFgAUv6pTgbKHN60CZ+RQn5yOuH6c2WiA8PoCAAAAABYAFJDbOFU0E6zFF/M+g/AKDyqI2iUaAAAAAAABAOsCAAAAAAEBbxqXgEf9DlzcqqNM610s5pL1X258ra6+KJ22etb7HAcBAAAAAAAAAAACACT0AAAAAAAiACC7U1W0iJGhQ6o7CexDh5k36V6v3256xpA9/xmB2BybTFZdDQQAAAAAFgAUKp2ThzhswyM2QHlyvmMB6tQB7V0CSDBFAiEA4Md8RIZYqFdUPsgDyomlzMJL9bJ6Ho23JGTihXtEelgCIAeNXRLyt88SOuuWFVn3IodCE4U5D6DojIHesRmikF28ASEDHYFzMEAxfmfq98eSSnZtUwb1w7mAtHG65y8qiRFNnIkAAAAAAQEfVl0NBAAAAAAWABQqnZOHOGzDIzZAeXK+YwHq1AHtXQEDBAEAAAAAAAA="/>
+    <br/>
+    <button onClick="decodePsbt();">Decode</button>
+
+    <pre id="output">
+    </pre>
+</div>
+</body>
+
+</html>
